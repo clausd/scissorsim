@@ -271,9 +271,9 @@
     <div class="control">
       <div class="control-head">
         <label for="fashion">Length in fashion</label>
-        <span class="control-val" id="fashionVal">4.0 cm</span>
+        <span class="control-val" id="fashionVal">6.0 cm</span>
       </div>
-      <input type="range" id="fashion" min="0.6" max="34" step="0.2" value="4">
+      <input type="range" id="fashion" min="0.6" max="34" step="0.2" value="6">
     </div>
 
     <div class="control">
@@ -380,7 +380,7 @@ const rnd  = (a, b) => a + Math.random() * (b - a);
 
 const state = {
   week: 0,
-  fashion: 4,
+  fashion: 6,
   fuss: 0.15,
   count: 20,
   heads: [],
@@ -1056,11 +1056,14 @@ el("shuffle").addEventListener("click", shuffleTown);
 el("reset").addEventListener("click", reset);
 
 const playBtn = el("play");
-playBtn.addEventListener("click", () => {
-  state.playing = !state.playing;
-  playBtn.textContent = state.playing ? "Pause" : "Play";
+
+function setPlaying(on) {
+  state.playing = on;
+  playBtn.textContent = on ? "Pause" : "Play";
   playAccum = 0;
-});
+}
+
+playBtn.addEventListener("click", () => setPlaying(!state.playing));
 
 window.addEventListener("keydown", e => {
   if (e.target.matches("input, button")) return;
@@ -1118,6 +1121,11 @@ new MutationObserver(onTheme).observe(document.documentElement,
 readTheme();
 syncLabels();
 reset();
+
+// The clock runs on arrival — a still grid of heads doesn't show the one thing
+// the toy is about. Anyone who has asked their system for less motion gets the
+// still version and can start it themselves.
+setPlaying(!reduceMotion);
 requestAnimationFrame(frame);
 </script>
 </body>
