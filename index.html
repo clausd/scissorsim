@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scissorsim — what hair length does to a hairdresser's week</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%230f8f99' stroke-width='3.2' stroke-linecap='round'%3E%3Cpath d='M5 25 A11.5 10 0 0 1 27 25'/%3E%3Cpath d='M7.5 20.5 L4.5 11'/%3E%3Cpath d='M16 13.5 L16 3.5'/%3E%3Cpath d='M24.5 20.5 L27.5 11'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  /* Warm sand, a hair off white — the ground a salon floor is swept onto,
+     not a tinted cream. Ink and scalp carry the same warm cast so the
+     drawing sits on the paper instead of on top of it. */
+  :root {
+    --tile:      #f7f5f2;
+    --panel:     #efebe5;
+    --ink:       #191714;
+    --ink-soft:  #5c5349;
+    --ink-faint: #6e665b;
+    --rule:      #ded8d0;
+    --accent:    #0b7079;
+    --accent-lo: #b6dcdf;
+    --ochre:     #8f6015;
+    --hair:      #191714;
+    --scalp:     #332e28;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --tile:      #1a1714;
+      --panel:     #24201b;
+      --ink:       #ece7e0;
+      --ink-soft:  #a79d91;
+      --ink-faint: #8a8074;
+      --rule:      #383029;
+      --accent:    #3ecad3;
+      --accent-lo: #1f5257;
+      --ochre:     #d9a949;
+      --hair:      #ece7e0;
+      --scalp:     #c0b8ac;
+    }
+  }
+  :root[data-theme="dark"] {
+    --tile:#1a1714; --panel:#24201b; --ink:#ece7e0; --ink-soft:#a79d91;
+    --ink-faint:#8a8074; --rule:#383029; --accent:#3ecad3; --accent-lo:#1f5257;
+    --ochre:#d9a949; --hair:#ece7e0; --scalp:#c0b8ac;
+  }
+  :root[data-theme="light"] {
+    --tile:#f7f5f2; --panel:#efebe5; --ink:#191714; --ink-soft:#5c5349;
+    --ink-faint:#6e665b; --rule:#ded8d0; --accent:#0b7079; --accent-lo:#b6dcdf;
+    --ochre:#8f6015; --hair:#191714; --scalp:#332e28;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--tile);
+    color: var(--ink);
+    font-family: Futura, "Century Gothic", "URW Gothic", "Avenir Next", Avenir, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .note {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    line-height: 1.55;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    padding: 18px 26px 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .wordmark {
+    margin: 0;
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: 0.34em;
+    text-indent: 0.34em;
+    color: var(--ink);
+  }
+  .thesis {
+    margin: 0;
+    flex: 1 1 320px;
+    max-width: 62ch;
+    font-size: 15px;
+  }
+  .weekpill {
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .weekpill b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- body layout ---------- */
+  main {
+    display: grid;
+    grid-template-columns: 286px 1fr;
+    min-height: 0;
+  }
+  .rail {
+    border-right: 1px solid var(--rule);
+    padding: 20px 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+  }
+  .stage {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Both canvases are taken out of flow on purpose. In normal flow a canvas
+     with a percentage size falls back to its attribute size as its intrinsic
+     size, so sizing the attributes from the parent's box feeds straight back
+     into that box — the parent grows, the canvas grows, and Safari ends up
+     refusing to allocate the backing store. Absolute positioning breaks it. */
+  #heads-canvas {
+    position: absolute; inset: 0;
+    display: block; width: 100%; height: 100%;
+  }
+
+  /* ---------- controls ---------- */
+  .control { display: flex; flex-direction: column; gap: 7px; }
+  .control-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  }
+  .control-head label { font-size: 14px; letter-spacing: 0.02em; }
+  .control-val {
+    font-size: 17px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 22px; margin: 0;
+    background: transparent; cursor: grab;
+  }
+  input[type="range"]:active { cursor: grabbing; }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px; background: var(--rule);
+  }
+  input[type="range"]::-moz-range-track { height: 2px; background: var(--rule); }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 15px; height: 15px; margin-top: -6.5px;
+    border-radius: 50%; background: var(--accent);
+    border: 2px solid var(--tile);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--tile);
+  }
+  input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  .transport { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 8px 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary {
+    background: var(--accent); border-color: var(--accent);
+    color: var(--tile);
+  }
+  button.primary:hover { filter: brightness(1.12); color: var(--tile); }
+  button.quiet {
+    background: none; border: none; padding: 4px 0;
+    color: var(--ink-soft); text-decoration: underline;
+    text-underline-offset: 3px; text-decoration-thickness: 1px;
+  }
+  button.quiet:hover { color: var(--accent); }
+
+  /* ---------- readouts ---------- */
+  .divider { height: 1px; background: var(--rule); }
+
+  .headline-stat { display: flex; flex-direction: column; gap: 2px; }
+  .headline-stat .num {
+    font-size: 58px;
+    line-height: 0.92;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .headline-stat .cap { font-size: 14px; color: var(--ink-soft); }
+
+  .statrow {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding: 7px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .statrow:last-of-type { border-bottom: none; }
+  .statrow dt { font-size: 14px; color: var(--ink-soft); }
+  .statrow dd {
+    margin: 0; font-size: 19px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  dl { margin: 0; }
+
+  .verdict { font-size: 14px; }
+  .verdict.empty { color: var(--ochre); font-style: normal; font-family: inherit; }
+
+  .tryrow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .tryrow .lead { font-size: 13px; color: var(--ink-faint); letter-spacing: 0.02em; }
+
+  /* ---------- results band ---------- */
+  .results {
+    border-top: 1px solid var(--rule);
+    padding: 14px 26px 16px;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: end;
+    gap: 0 30px;
+  }
+  .results > .headline-stat { padding-right: 30px; border-right: 1px solid var(--rule); }
+  .results > dl { padding-right: 30px; border-right: 1px solid var(--rule); }
+
+  .chartcol { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .chart-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  }
+  .chart-title { font-size: 14px; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .chart-hint { font-size: 13px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .chart-wrap { position: relative; height: 86px; overflow: hidden; }
+  #chart {
+    position: absolute; inset: 0;
+    display: block; width: 100%; height: 100%;
+  }
+
+  @media (max-width: 860px) {
+    body { height: auto; overflow: auto; }
+    main { grid-template-columns: 1fr; }
+    .rail { border-right: none; border-bottom: 1px solid var(--rule); }
+    .stage { height: 58vh; }
+    .results { grid-template-columns: auto 1fr; gap: 16px 24px; }
+    .results > dl { border-right: none; padding-right: 0; }
+    .chartcol { grid-column: 1 / -1; }
+    .headline-stat .num { font-size: 46px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1 class="wordmark">scissorsim</h1>
+  <p class="thesis note">Hair grows about 0.3&nbsp;cm a week whatever length it is. What changes is how much that 0.3&nbsp;cm matters — and that is the whole of a hairdresser's income.</p>
+  <div class="weekpill">week <b id="weekNum">0</b></div>
+</header>
+
+<main>
+  <aside class="rail">
+    <div class="control">
+      <div class="control-head">
+        <label for="fashion">Length in fashion</label>
+        <span class="control-val" id="fashionVal">4.0 cm</span>
+      </div>
+      <input type="range" id="fashion" min="0.6" max="34" step="0.2" value="4">
+    </div>
+
+    <div class="control">
+      <div class="control-head">
+        <label for="heads">Heads in town</label>
+        <span class="control-val" id="headsVal">20</span>
+      </div>
+      <input type="range" id="heads" min="1" max="48" step="1" value="20">
+    </div>
+
+    <div class="control">
+      <div class="control-head">
+        <label for="fuss">Tolerance before it bugs them</label>
+        <span class="control-val" id="fussVal">15%</span>
+      </div>
+      <input type="range" id="fuss" min="4" max="34" step="1" value="15">
+    </div>
+
+    <div class="tryrow">
+      <span class="lead">Try it:</span>
+      <button class="quiet" id="tryShort">everyone crops it to 1.5 cm</button>
+      <button class="quiet" id="tryLong">everyone grows it to 24 cm</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="transport">
+      <button class="primary" id="step">Next week</button>
+      <button id="play">Play</button>
+      <button id="shuffle">Shuffle lengths</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <p class="verdict note" id="verdict">Each client comes back about every 2 weeks.</p>
+  </aside>
+
+  <section class="stage">
+    <canvas id="heads-canvas" aria-label="Twenty heads of hair growing week by week"></canvas>
+  </section>
+</main>
+
+<section class="results">
+  <div class="headline-stat">
+    <span class="num" id="cutsNow">0</span>
+    <span class="cap">cuts booked this week</span>
+  </div>
+
+  <dl>
+    <div class="statrow">
+      <dt>Per week, 12-week average</dt>
+      <dd id="avg12">—</dd>
+    </div>
+    <div class="statrow">
+      <dt>Visits per client per year</dt>
+      <dd id="perYear">—</dd>
+    </div>
+  </dl>
+
+  <div class="chartcol">
+    <div class="chart-head">
+      <span class="chart-title">Cuts per week</span>
+      <span class="chart-hint" id="chartHint">the dashed line is the 12-week average</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+</section>
+
+<script>
+"use strict";
+
+/* ============================================================
+   scissorsim
+   A hairdresser's week, simulated.
+
+   The model in one line: people book a cut when their hair is a
+   *fraction* too long, not an absolute amount too long. Growth is
+   constant, so the fashionable length sets the booking interval.
+   ============================================================ */
+
+const GROWTH      = 0.29;   // cm per week, the human average
+const MIN_NOTICE  = 0.35;   // cm — below this nobody can tell, even on a buzz
+const MIN_GAP     = 2;      // weeks — you cannot book faster than this
+const MAX_GAP     = 26;     // weeks — split ends drag everyone in eventually
+const UNDERCUT    = 0.12;   // cm the hairdresser takes off past target
+const AVG_DELAY   = 0.9;    // weeks between wanting a cut and getting the slot
+const SPREAD      = 0.30;   // how far personal taste strays from the fashion
+
+const SEG_PX      = 6.0;    // strand segment length, in pixels
+const TURN        = 0.045;  // how far a joint yields toward vertical per unit of load
+const TURN_MAX    = 0.50;
+const SWAY        = 0.016;  // drift added along the strand, so nothing is stiff
+const CHASE       = 0.22;   // how hard a drawn point is pulled to its rest position
+const VDAMP       = 0.82;
+const STRANDS     = 18;
+
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- deterministic-ish randomness helpers ---------- */
+const rnd  = (a, b) => a + Math.random() * (b - a);
+
+/* ============================================================
+   State
+   ============================================================ */
+
+const state = {
+  week: 0,
+  fashion: 4,
+  fuss: 0.15,
+  count: 20,
+  heads: [],
+  history: [],          // { week, cuts, fashion }
+  pxPerCm: 10,
+  clippings: [],
+  playing: false,
+};
+
+// Everything that makes one person different from the next. Re-rolling these
+// is what the shuffle button does.
+function rollHead(h) {
+  h.bias   = rnd(1 - SPREAD, 1 + SPREAD);   // personal take on the fashionable length
+  h.growth = GROWTH * rnd(0.82, 1.18);
+  h.tolMul = rnd(0.75, 1.3);                // some people are fussier than others
+  h.phase  = rnd(0, 6.28);
+  return h;
+}
+
+// Drop someone at a random point in their own cut cycle, so a fresh town has
+// people who were cut yesterday standing next to people who are overdue.
+// Reaching past the threshold is deliberate: a few need a cut right away.
+function scatterLength(h) {
+  h.len = Math.max(0.3, target(h) + Math.random() * threshold(h) * 1.35);
+  h.lastCut = state.week - Math.floor(Math.random() * 8);
+  h.wantsSince = null;
+  h.delay = 0;
+  return h;
+}
+
+function makeHead() {
+  const h = rollHead({
+    len:     0,
+    wantsSince: null,             // week they first felt it was too long
+    delay:   0,
+    lastCut: -99,
+    justCut: 0,                   // frames of highlight left
+    strands: [],
+    // drawing state, filled by layout()
+    cx: 0, cy: 0, rx: 20, ry: 17,
+  });
+  return scatterLength(h);
+}
+
+function shuffleTown() {
+  for (const h of state.heads) {
+    rollHead(h);
+    scatterLength(h);
+    buildStrands(h);              // re-roll how messy this head looks, too
+  }
+  paintReadouts(lastCuts());
+}
+
+function target(head)    { return Math.max(0.4, state.fashion * head.bias); }
+function threshold(head) { return Math.max(state.fuss * head.tolMul * target(head), MIN_NOTICE); }
+
+function seedHeads(n) {
+  const heads = [];
+  for (let i = 0; i < n; i++) heads.push(makeHead());
+  return heads;
+}
+
+function resizeTown() {
+  const n = state.count;
+  while (state.heads.length < n) state.heads.push(makeHead());
+  if (state.heads.length > n) state.heads.length = n;
+}
+
+function reset() {
+  state.week = 0;
+  state.heads = seedHeads(state.count);
+  state.history = [];
+  state.clippings = [];
+  snapZoom = true;
+  needsFit = true;
+  layout();
+  for (const h of state.heads) buildStrands(h);
+  for (let i = 0; i < 200; i++) simulateHair(1);
+  render();
+  paintReadouts(0);
+}
+
+/* ============================================================
+   The week tick
+   ============================================================ */
+
+function tickWeek() {
+  let cuts = 0;
+  for (const h of state.heads) {
+    h.len += h.growth;
+    const over  = h.len - target(h);
+    const stale = state.week - h.lastCut;
+
+    const tooLong = over > threshold(h);
+    const overdue = stale >= MAX_GAP;
+
+    if ((tooLong || overdue) && h.wantsSince === null) {
+      h.wantsSince = state.week;
+      h.delay = Math.random() < 0.5 ? 0 : (Math.random() < 0.6 ? 1 : 2);
+    }
+    // Fashion can swing back long again — if it no longer bugs them, cancel.
+    if (h.wantsSince !== null && !tooLong && !overdue) h.wantsSince = null;
+
+    if (h.wantsSince !== null &&
+        state.week - h.wantsSince >= h.delay &&
+        stale >= MIN_GAP) {
+      cutHair(h, overdue && !tooLong);
+      cuts++;
+    }
+  }
+
+  state.week++;
+  state.history.push({ week: state.week, cuts, fashion: state.fashion });
+  if (state.history.length > 160) state.history.shift();
+  paintReadouts(cuts);
+}
+
+// `maintenance` is the split-ends trim someone takes during a grow-out, when
+// their hair is still *shorter* than what they are aiming for. A cut must
+// never make hair longer, so the target is only ever an upper bound.
+function cutHair(h, maintenance) {
+  const before = h.len;
+  const tgt = target(h) - Math.random() * UNDERCUT;
+  h.len = Math.max(0.3, Math.min(tgt, h.len - (maintenance ? 1.2 : 0)));
+  h.lastCut = state.week;
+  h.wantsSince = null;
+  h.justCut = 42;
+  spawnClippings(h, before - h.len);
+}
+
+/* ============================================================
+   Layout — where each head sits, and how many pixels a cm is worth
+   ============================================================ */
+
+const stage  = document.querySelector(".stage");
+const canvas = document.getElementById("heads-canvas");
+const ctx    = canvas.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+
+// Safari will not allocate an arbitrarily large canvas — past its limit it
+// drops the backing store and paints a broken-image glyph instead. Step the
+// pixel ratio down rather than lose the drawing entirely.
+const MAX_CANVAS_AREA = 16e6;
+
+function fitCanvas(cv, c) {
+  const r = cv.parentElement.getBoundingClientRect();
+  const cssW = Math.max(1, Math.round(r.width));
+  const cssH = Math.max(1, Math.round(r.height));
+
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  while (dpr > 1 && cssW * cssH * dpr * dpr > MAX_CANVAS_AREA) dpr -= 0.25;
+
+  const w = Math.max(1, Math.round(cssW * dpr));
+  const h = Math.max(1, Math.round(cssH * dpr));
+  // Assigning width/height clears the canvas, so only do it when it changed.
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  // Assigning either dimension resets the transform, so always restore it.
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [cssW, cssH];
+}
+
+let zoomNow = 10;   // px per cm, eased toward the target so the camera glides
+let snapZoom = true;
+let needsFit = true;
+
+function layout() {
+  // Resizing a canvas clears it, so only refit when the box actually changed
+  // — and always follow a refit with a render before anything can paint.
+  if (needsFit) { [W, H] = fitCanvas(canvas, ctx); needsFit = false; }
+  const n = state.heads.length || 1;
+
+  // Choose a grid close to the stage's aspect ratio.
+  let cols = Math.max(1, Math.round(Math.sqrt(n * (W / Math.max(H, 1)) * 0.85)));
+  cols = Math.min(cols, n);
+  let rows = Math.ceil(n / cols);
+  while (cols > 1 && (cols - 1) * rows >= n) { cols--; rows = Math.ceil(n / cols); }
+
+  const padX = 18, padY = 14;
+  const cellW = (W - padX * 2) / cols;
+  const cellH = (H - padY * 2) / rows;
+
+  // One ruler for everything. A head is 15 cm across and hair is measured on
+  // that same scale, so a strand always reads at its true length relative to
+  // the skull. The camera pulls back as the fashionable length grows.
+  const SKULL_CM = 7.5;
+  const needCm   = SKULL_CM * 0.9 + state.fashion * 1.35;   // dome plus the drop
+  const zoomWant = clamp(
+    Math.min(cellH * 0.86 / needCm, cellW * 0.55 / (SKULL_CM * 2)),
+    0.9, 22);
+  if (snapZoom) { zoomNow = zoomWant; snapZoom = false; }
+  else zoomNow += (zoomWant - zoomNow) * 0.09;
+  state.pxPerCm = zoomNow;
+
+  const rx = SKULL_CM * zoomNow;
+
+  state.heads.forEach((h, i) => {
+    const col = i % cols, row = (i / cols) | 0;
+    const inRow = Math.min(cols, n - row * cols);
+    const rowW  = inRow * cellW;
+    h.cx = padX + (W - padX * 2 - rowW) / 2 + col * cellW + cellW / 2;
+    h.ry = rx * 0.86;
+    h.cy = padY + row * cellH + h.ry + cellH * 0.07;
+    h.rx = rx;
+  });
+}
+
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+/* ============================================================
+   Hair — a verlet chain per strand.
+
+   Segments are a fixed number of pixels long, so longer hair simply
+   has *more* of them. That is what makes short hair stand up stiff
+   and long hair fold over and hang: exactly the cantilever behaviour
+   of a real strand, for free.
+   ============================================================ */
+
+function scalpPoint(h, t) {
+  const a  = (Math.PI + 0.30) - t * (Math.PI + 0.60);   // left base, over the top, right base
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const x  = h.cx + h.rx * ca;
+  const y  = h.cy - h.ry * sa;
+  let nx = ca / h.rx, ny = -sa / h.ry;
+  const m = Math.hypot(nx, ny) || 1;
+  return { x, y, nx: nx / m, ny: ny / m };
+}
+
+function buildStrands(h) {
+  h.strands = [];
+  for (let i = 0; i < STRANDS; i++) {
+    const t = (i + 0.5) / STRANDS + rnd(-0.022, 0.022);
+    h.strands.push({
+      t: clamp(t, 0.01, 0.99),
+      unruly: rnd(0.86, 1.16),        // no two hairs are the same length
+      lean:   rnd(-0.22, 0.22),       // root angle wobble
+      limp:   rnd(0.72, 1.32),        // some strands give in to gravity sooner
+      fall:   rnd(-0.17, 0.17),       // not everything falls on the same plumb line
+      phase:  rnd(0, 6.28),
+      width:  rnd(1.7, 2.9),
+      pts:  [],
+      rest: [],
+    });
+  }
+}
+
+function spawnClippings(h, cmRemoved) {
+  if (cmRemoved <= 0.05) return;
+  for (let k = 0; k < 4; k++) {
+    const s = h.strands[(Math.random() * h.strands.length) | 0];
+    if (!s || s.pts.length < 3) continue;
+    const a = s.pts[s.pts.length - 2], b = s.pts[s.pts.length - 1];
+    state.clippings.push({
+      x: b.x, y: b.y,
+      ax: a.x - b.x, ay: a.y - b.y,
+      vx: rnd(-0.5, 0.5), vy: rnd(0.2, 1.0),
+      spin: rnd(-0.07, 0.07), rot: 0,
+      life: 1,
+    });
+  }
+  if (state.clippings.length > 400) state.clippings.splice(0, state.clippings.length - 400);
+}
+
+let tSec = 0;
+
+function simulateHair(dtScale) {
+  tSec += 0.016 * dtScale;
+  const breezeAmp = reduceMotion ? 0 : SWAY;
+
+  for (const h of state.heads) {
+    if (!h.strands.length) buildStrands(h);
+    const lenPx = h.len * state.pxPerCm;
+    if (h.justCut > 0) h.justCut--;
+
+    for (const s of h.strands) {
+      const total = Math.max(1.5, lenPx * s.unruly);
+      const nSeg  = clamp(Math.ceil(total / SEG_PX), 1, 64);
+      const seg   = total / nSeg;
+      const root  = scalpPoint(h, s.t);
+
+      /* --- The rest shape: a strand sagging under its own weight ---------
+         Each joint turns toward vertical in proportion to how much hair
+         still hangs below it. A 1 cm bristle has almost nothing below its
+         root, so it stands straight out of the scalp; a 20 cm strand has
+         plenty, so it gives up within a joint or two and falls. That single
+         rule is what makes short and long hair look like themselves.      */
+      let ang = Math.atan2(root.ny, root.nx) + s.lean;
+      let px = root.x, py = root.y;
+      const rest = s.rest;
+      rest.length = 0;
+      rest.push(px, py);
+
+      for (let i = 1; i <= nSeg; i++) {
+        const load = nSeg - i + 1;
+        const turn = Math.min(TURN_MAX, TURN * load * s.limp);
+        let d = (Math.PI / 2 + s.fall) - ang;              // canvas y points down
+        d = Math.atan2(Math.sin(d), Math.cos(d));          // shortest way round
+        ang += d * turn;
+        ang += breezeAmp * Math.sin(tSec * 0.8 + h.phase + s.phase + i * 0.34);
+
+        let nxp = px + Math.cos(ang) * seg;
+        let nyp = py + Math.sin(ang) * seg;
+
+        // Hair cannot pass through the skull; it slides over it instead.
+        // This is what drapes long hair over the crown and down past the ears.
+        if (nyp < h.cy + h.ry * 0.3) {
+          const u = (nxp - h.cx) / h.rx, v = (nyp - h.cy) / h.ry;
+          const m = Math.hypot(u, v);
+          if (m < 1 && m > 1e-4) {
+            nxp = h.cx + (u / m) * h.rx;
+            nyp = h.cy + (v / m) * h.ry;
+            ang = Math.atan2(nyp - py, nxp - px);
+          }
+        }
+        px = nxp; py = nyp;
+        rest.push(px, py);
+      }
+
+      /* --- The drawn points chase that shape on a damped spring ----------
+         Nothing here can buckle or kink, and a strand still swings and
+         settles when the head moves or the tip is snipped off.            */
+      const pts = s.pts;
+      while (pts.length > nSeg + 1) pts.pop();
+      while (pts.length < nSeg + 1) {
+        const k = pts.length;
+        const x = rest[k * 2], y = rest[k * 2 + 1];
+        pts.push({ x, y, px: x, py: y });
+      }
+
+      pts[0].x = root.x; pts[0].y = root.y;
+      pts[0].px = root.x; pts[0].py = root.y;
+
+      for (let i = 1; i <= nSeg; i++) {
+        const p = pts[i];
+        const vx = (p.x - p.px) * VDAMP;
+        const vy = (p.y - p.py) * VDAMP;
+        p.px = p.x; p.py = p.y;
+        p.x += vx + (rest[i * 2]     - p.x) * CHASE;
+        p.y += vy + (rest[i * 2 + 1] - p.y) * CHASE;
+      }
+    }
+  }
+
+  // Falling clippings
+  for (let i = state.clippings.length - 1; i >= 0; i--) {
+    const c = state.clippings[i];
+    c.vy += 0.16; c.vx *= 0.99;
+    c.x += c.vx; c.y += c.vy;
+    c.rot += c.spin;
+    c.life -= 0.028;
+    if (c.life <= 0) state.clippings.splice(i, 1);
+  }
+}
+
+/* ============================================================
+   Drawing
+   ============================================================ */
+
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+let ink, scalpCol, accent, faint, ruleCol;
+
+function readTheme() {
+  ink      = css("--hair");
+  scalpCol = css("--scalp");
+  accent   = css("--accent");
+  faint    = css("--ink-faint");
+  ruleCol  = css("--rule");
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (const h of state.heads) drawHead(h);
+
+  // Clippings on the floor
+  for (const c of state.clippings) {
+    ctx.globalAlpha = Math.max(0, c.life) * 0.5;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.6;
+    const co = Math.cos(c.rot), si = Math.sin(c.rot);
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(c.x + c.ax * co - c.ay * si, c.y + c.ax * si + c.ay * co);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  drawScaleBar();
+}
+
+function drawHead(h) {
+  // The skull: two slightly offset passes, drawn by a shaky hand.
+  // The skull, drawn twice by a shaky hand. A fresh cut is overdrawn in
+  // accent and fades back to the base colour over about a second.
+  const wob = Math.max(0.6, h.rx * 0.035);
+  const strokeArc = (pass) => {
+    ctx.beginPath();
+    for (let i = 0; i <= 26; i++) {
+      const t = i / 26;
+      const p = scalpPoint(h, t);
+      const w = Math.sin(t * 7.3 + h.phase + pass * 2) * wob;
+      const x = p.x + p.nx * w, y = p.y + p.ny * w;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+  };
+
+  ctx.strokeStyle = scalpCol;
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.lineWidth = pass ? 1.5 : Math.max(2.2, h.rx * 0.055);
+    ctx.globalAlpha = pass ? 0.4 : 1;
+    strokeArc(pass);
+  }
+  if (h.justCut > 0) {
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = Math.max(2.2, h.rx * 0.055);
+    ctx.globalAlpha = h.justCut / 42;
+    strokeArc(0);
+  }
+  ctx.globalAlpha = 1;
+
+  // The hair itself, tapering from root to tip. Stroke weight follows the
+  // head so a crowded town reads as hair rather than as a solid mop.
+  ctx.strokeStyle = ink;
+  const weight = clamp(h.rx / 46, 0.5, 1);
+  for (const s of h.strands) {
+    const pts = s.pts;
+    if (pts.length < 2) continue;
+    const steps = pts.length - 1;
+    for (let i = 0; i < steps; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const f = i / steps;
+      ctx.lineWidth = s.width * weight * (1 - f * 0.62);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      if (i + 2 < pts.length) {
+        const c = pts[i + 2];
+        ctx.quadraticCurveTo(b.x, b.y, (b.x + c.x) / 2, (b.y + c.y) / 2);
+      } else {
+        ctx.lineTo(b.x, b.y);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawScaleBar() {
+  const steps = [1, 2, 5, 10, 20, 50];
+  let cm = 1;
+  for (const s of steps) if (s * state.pxPerCm < 130) cm = s;
+  const px = cm * state.pxPerCm;
+  const x = 20, y = H - 18;
+  ctx.strokeStyle = faint;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+  ctx.moveTo(x, y); ctx.lineTo(x + px, y);
+  ctx.moveTo(x + px, y - 4); ctx.lineTo(x + px, y + 4);
+  ctx.stroke();
+  ctx.fillStyle = faint;
+  ctx.font = "12px Futura, 'Century Gothic', system-ui, sans-serif";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(cm + " cm", x, y - 7);
+  ctx.globalAlpha = 1;
+}
+
+/* ============================================================
+   Chart — cuts per week, one series, with the rolling average over it
+   ============================================================ */
+
+const chart = document.getElementById("chart");
+const cctx  = chart.getContext("2d");
+let CW = 0, CH = 0;
+let hoverWeek = null;
+
+function drawChart() {
+  [CW, CH] = fitCanvas(chart, cctx);
+  cctx.clearRect(0, 0, CW, CH);
+
+  const h = state.history;
+  const base = CH - 16;
+  const top  = 8;
+
+  // Baseline
+  cctx.strokeStyle = ruleCol;
+  cctx.lineWidth = 1;
+  cctx.beginPath();
+  cctx.moveTo(0, base + 0.5); cctx.lineTo(CW, base + 0.5);
+  cctx.stroke();
+
+  if (!h.length) {
+    cctx.fillStyle = faint;
+    cctx.font = "13px Futura, 'Century Gothic', system-ui, sans-serif";
+    cctx.textBaseline = "middle";
+    cctx.fillText("Step a week forward and the appointment book starts filling.", 2, CH / 2);
+    return;
+  }
+
+  const shown = h.slice(-110);
+  const peak  = Math.max(3, ...shown.map(d => d.cuts));
+  const slot  = CW / shown.length;
+  const bw    = Math.max(1.5, Math.min(slot - 2, 14));
+  const scale = (base - top) / peak;
+
+  // Bars
+  shown.forEach((d, i) => {
+    const x = i * slot + (slot - bw) / 2;
+    const hgt = d.cuts * scale;
+    const isLast = i === shown.length - 1;
+    const isHover = hoverWeek === d.week;
+    cctx.fillStyle = (isLast || isHover) ? accent : ink;
+    cctx.globalAlpha = (isLast || isHover) ? 1 : 0.28;
+    if (hgt < 0.5) { cctx.globalAlpha = 1; return; }
+    roundTopRect(cctx, x, base - hgt, bw, hgt, Math.min(4, bw / 2));
+    cctx.fill();
+  });
+  cctx.globalAlpha = 1;
+
+  // Rolling 12-week average
+  if (shown.length > 3) {
+    cctx.strokeStyle = accent;
+    cctx.lineWidth = 2;
+    cctx.setLineDash([4, 4]);
+    cctx.beginPath();
+    shown.forEach((d, i) => {
+      const from = Math.max(0, i - 11);
+      let sum = 0;
+      for (let k = from; k <= i; k++) sum += shown[k].cuts;
+      const avg = sum / (i - from + 1);
+      const x = i * slot + slot / 2, y = base - avg * scale;
+      i ? cctx.lineTo(x, y) : cctx.moveTo(x, y);
+    });
+    cctx.stroke();
+    cctx.setLineDash([]);
+  }
+
+  // A tick where the fashionable length shifted
+  cctx.strokeStyle = faint;
+  cctx.lineWidth = 1;
+  for (let i = 1; i < shown.length; i++) {
+    const a = shown[i - 1].fashion, b = shown[i].fashion;
+    if (Math.abs(b - a) / Math.max(a, 0.1) > 0.08) {
+      const x = Math.round(i * slot) + 0.5;
+      cctx.beginPath();
+      cctx.moveTo(x, base + 1); cctx.lineTo(x, base + 6);
+      cctx.stroke();
+    }
+  }
+
+  // Peak label, so the axis-less chart still has a magnitude
+  cctx.fillStyle = faint;
+  cctx.font = "12px Futura, 'Century Gothic', system-ui, sans-serif";
+  cctx.textBaseline = "top";
+  cctx.fillText(peak + " cuts", 2, 0);
+}
+
+function roundTopRect(c, x, y, w, h, r) {
+  r = Math.min(r, h);
+  c.beginPath();
+  c.moveTo(x, y + h);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h);
+  c.closePath();
+}
+
+chart.addEventListener("mousemove", e => {
+  const r = chart.getBoundingClientRect();
+  const shown = state.history.slice(-110);
+  if (!shown.length) return;
+  const i = clamp(Math.floor((e.clientX - r.left) / (r.width / shown.length)), 0, shown.length - 1);
+  const d = shown[i];
+  hoverWeek = d.week;
+  document.getElementById("chartHint").textContent =
+    `week ${d.week} · ${d.cuts} ${d.cuts === 1 ? "cut" : "cuts"} · fashion ${d.fashion.toFixed(1)} cm`;
+  drawChart();
+});
+chart.addEventListener("mouseleave", () => {
+  hoverWeek = null;
+  document.getElementById("chartHint").textContent = "the dashed line is the 12-week average";
+  drawChart();
+});
+
+/* ============================================================
+   Readouts
+   ============================================================ */
+
+const el = id => document.getElementById(id);
+
+function paintReadouts(cutsThisWeek) {
+  el("weekNum").textContent = state.week;
+  el("cutsNow").textContent = cutsThisWeek;
+
+  const h = state.history;
+  if (h.length) {
+    const recent = h.slice(-12);
+    const avg = recent.reduce((s, d) => s + d.cuts, 0) / recent.length;
+    el("avg12").textContent = avg.toFixed(1);
+
+    const win = h.slice(-26);
+    const total = win.reduce((s, d) => s + d.cuts, 0);
+    const perYear = (total / state.heads.length) * (52 / win.length);
+    el("perYear").textContent = perYear.toFixed(1);
+  } else {
+    el("avg12").textContent = "—";
+    el("perYear").textContent = "—";
+  }
+
+  // The expected gap, straight from the model — it updates the instant you
+  // drag a slider, before the simulation has caught up.
+  const thr = Math.max(state.fuss * state.fashion, MIN_NOTICE);
+  const gap = clamp(thr / GROWTH + AVG_DELAY, MIN_GAP, MAX_GAP);
+  const v = el("verdict");
+  if (gap >= MAX_GAP - 0.01) {
+    v.textContent = "At this length nothing short of split ends brings anyone in — about twice a year, and that is the whole of it.";
+    v.classList.add("empty");
+  } else if (gap > 10) {
+    v.textContent = `Each client comes back about every ${gap.toFixed(0)} weeks. The chair is empty most days.`;
+    v.classList.add("empty");
+  } else {
+    v.textContent = `Each client comes back about every ${gap.toFixed(gap < 4 ? 1 : 0)} weeks.`;
+    v.classList.remove("empty");
+  }
+
+  drawChart();
+}
+
+/* ============================================================
+   Controls
+   ============================================================ */
+
+const fashionIn = el("fashion"), headsIn = el("heads"), fussIn = el("fuss");
+
+function syncLabels() {
+  el("fashionVal").textContent = state.fashion.toFixed(1) + " cm";
+  el("headsVal").textContent   = state.count;
+  el("fussVal").textContent    = Math.round(state.fuss * 100) + "%";
+}
+
+fashionIn.addEventListener("input", () => {
+  state.fashion = parseFloat(fashionIn.value);
+  syncLabels(); paintReadouts(lastCuts());
+});
+headsIn.addEventListener("input", () => {
+  state.count = parseInt(headsIn.value, 10);
+  resizeTown(); layout();
+  syncLabels(); paintReadouts(lastCuts());
+});
+fussIn.addEventListener("input", () => {
+  state.fuss = parseInt(fussIn.value, 10) / 100;
+  syncLabels(); paintReadouts(lastCuts());
+});
+
+function lastCuts() {
+  return state.history.length ? state.history[state.history.length - 1].cuts : 0;
+}
+
+function setFashion(v) {
+  state.fashion = v;
+  fashionIn.value = String(v);
+  syncLabels();
+  paintReadouts(lastCuts());
+}
+el("tryShort").addEventListener("click", () => setFashion(1.5));
+el("tryLong").addEventListener("click",  () => setFashion(24));
+
+el("step").addEventListener("click", tickWeek);
+el("shuffle").addEventListener("click", shuffleTown);
+el("reset").addEventListener("click", reset);
+
+const playBtn = el("play");
+playBtn.addEventListener("click", () => {
+  state.playing = !state.playing;
+  playBtn.textContent = state.playing ? "Pause" : "Play";
+  playAccum = 0;
+});
+
+window.addEventListener("keydown", e => {
+  if (e.target.matches("input, button")) return;
+  if (e.code === "Space") { e.preventDefault(); playBtn.click(); }
+  if (e.code === "ArrowRight") { e.preventDefault(); tickWeek(); }
+});
+
+/* ============================================================
+   Loop
+   ============================================================ */
+
+let playAccum = 0, lastT = performance.now();
+
+function frame(now) {
+  const dt = Math.min(50, now - lastT);
+  lastT = now;
+
+  if (state.playing) {
+    playAccum += dt;
+    if (playAccum > 850) { playAccum = 0; tickWeek(); }
+  }
+
+  layout();
+  simulateHair(1);
+  render();
+  requestAnimationFrame(frame);
+}
+
+const ro = new ResizeObserver(() => {
+  needsFit = true;
+  layout(); render(); drawChart();
+});
+ro.observe(stage);
+ro.observe(document.querySelector(".chart-wrap"));
+// The page follows the OS theme, and also a data-theme stamped on the root by
+// a host's own toggle. Canvas colours are copied out of CSS, so re-read them.
+const onTheme = () => { readTheme(); render(); drawChart(); };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
+new MutationObserver(onTheme).observe(document.documentElement,
+  { attributes: true, attributeFilter: ["data-theme"] });
+
+// A starting state can be handed over in the URL: ?length=18&heads=30&fuss=12
+(function fromUrl() {
+  const q = new URLSearchParams(location.search);
+  const num = (k, lo, hi) => {
+    const v = parseFloat(q.get(k));
+    return Number.isFinite(v) ? clamp(v, lo, hi) : null;
+  };
+  const l = num("length", 0.6, 34), n = num("heads", 1, 48), f = num("fuss", 4, 34);
+  if (l !== null) { state.fashion = l; fashionIn.value = String(l); }
+  if (n !== null) { state.count = Math.round(n); headsIn.value = String(state.count); }
+  if (f !== null) { state.fuss = Math.round(f) / 100; fussIn.value = String(Math.round(f)); }
+})();
+
+readTheme();
+syncLabels();
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
